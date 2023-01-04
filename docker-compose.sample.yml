@@ -1,0 +1,49 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres:12-alpine
+    volumes:
+      - db:/var/lib/postgresql/data/
+    env_file:
+      - .env
+  
+  solder:
+    build: app/
+    container_name: solder
+    restart: on-failure
+    env_file:
+      - .env
+    volumes:
+      - repo:/var/lib/solder-repo
+      - storage:/var/lib/solder
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.solder.rule=Host(`solder.example.com`)"
+      - "traefik.http.routers.solder.service=solder"
+      - "traefik.http.routers.solder.tls=true"
+      - "traefik.http.routers.solder.tls.certresolver=letsencrypt"
+      - "traefik.http.services.solder.loadbalancer.server.port=80"
+    depends_on:
+      - postgres
+  
+  nginx:
+    image: nginx:1-alpine
+    volumes:
+      - ./nginx/repo.nginx:/etc/nginx/conf.d/default.conf
+      - repo:/var/lib/solder-repo
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.static.rule=Host(`static.example.com`)"
+      - "traefik.http.routers.static.entrypoints=websecure"
+      - "traefik.http.routers.static.service=static"
+      - "traefik.http.routers.static.tls=true"
+      - "traefik.http.routers.static.tls.certresolver=letsencrypt"
+      - "traefik.http.services.static.loadbalancer.server.port=80"
+    depends_on:
+      - solder
+
+volumes:
+  db:
+  repo:
+  storage:
